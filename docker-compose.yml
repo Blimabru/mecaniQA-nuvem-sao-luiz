@@ -1,53 +1,46 @@
-version: '3.8'
+version: '3.8' # Define a versão da especificação do Compose.
 
-services:
-  # Serviço da API Java
+services: # Declara os serviços executados pela aplicação.
   api:
-    build: .
-    restart: unless-stopped
+    build: . # Constrói a imagem usando o Dockerfile do diretório atual.
+    restart: unless-stopped # Reinicia o serviço, exceto quando parado manualmente.
     ports:
-      - "8080:8080"
-    environment:
-      # A aplicação encontra o banco e o redis pelo nome dos serviços (db e redis)
-      - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/mecaniqa
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=root
-      - SPRING_REDIS_HOST=redis
-      - SPRING_REDIS_PORT=6379
-    depends_on:
-      - db
-      - redis
+      - "8080:8080" # Publica a porta da API no host.
+    environment: # Define as configurações da aplicação.
+      - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/mecaniqa # URL do MySQL.
+      - SPRING_DATASOURCE_USERNAME=root # Usuário de acesso ao banco.
+      - SPRING_DATASOURCE_PASSWORD=root # Senha de acesso ao banco.
+      - SPRING_REDIS_HOST=redis # Nome do serviço Redis na rede interna.
+      - SPRING_REDIS_PORT=6379 # Porta interna do Redis.
+    depends_on: # Inicia a API após os serviços dependentes.
+      - db # Serviço de banco de dados.
+      - redis # Serviço de cache.
     networks:
-      - mecaniqa-network
+      - mecaniqa-network # Conecta a API à rede interna.
 
-  # Serviço do MySQL
   db:
-    image: mysql:8.0
-    restart: unless-stopped
+    image: mysql:8.0 # Utiliza o MySQL na versão 8.0.
+    restart: unless-stopped # Reinicia o serviço, exceto quando parado manualmente.
     ports:
-      - "3306:3306"
-    environment:
-      - MYSQL_DATABASE=mecaniqa
-      - MYSQL_ROOT_PASSWORD=root
+      - "3306:3306" # Publica a porta do MySQL no host.
+    environment: # Define a configuração inicial do banco.
+      - MYSQL_DATABASE=mecaniqa # Cria o banco informado na inicialização.
+      - MYSQL_ROOT_PASSWORD=root # Define a senha do usuário administrador.
     volumes:
-      # Persistência de dados: mapeia o volume 'mysql_data' para o diretório interno do MySQL
-      - mysql_data:/var/lib/mysql
+      - mysql_data:/var/lib/mysql # Persiste os dados do MySQL.
     networks:
-      - mecaniqa-network
+      - mecaniqa-network # Conecta o banco à rede interna.
 
-  # Serviço do Redis
   redis:
-    image: redis:alpine
-    restart: unless-stopped
+    image: redis:alpine # Utiliza uma imagem leve do Redis.
+    restart: unless-stopped # Reinicia o serviço, exceto quando parado manualmente.
     ports:
-      - "6379:6379"
+      - "6379:6379" # Publica a porta do Redis no host.
     networks:
-      - mecaniqa-network
+      - mecaniqa-network # Conecta o Redis à rede interna.
 
-# Declaração dos volumes
-volumes:
-  mysql_data:
+volumes: # Declara os volumes persistentes.
+  mysql_data: # Armazena os dados do MySQL.
 
-# Declaração da rede interna (isolamento na Camada Virtual)
-networks:
-  mecaniqa-network:
+networks: # Declara as redes compartilhadas pelos serviços.
+  mecaniqa-network: # Isola a comunicação interna da aplicação.
