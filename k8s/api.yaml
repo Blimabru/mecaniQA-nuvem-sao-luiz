@@ -1,0 +1,58 @@
+# ==============================================================================
+# BLOCO 1: DEPLOYMENT (Gerente de Pods da API Java)
+# Objetivo: Garantir que a API esteja sempre rodando (Auto-healing) e definir
+# as configurações da nossa aplicação (variáveis de ambiente, imagem, etc).
+# ==============================================================================
+apiVersion: apps/v1
+kind: Deployment # Indica que este recurso gerencia réplicas e ciclo de vida de Pods
+metadata:
+  name: api-deployment # Nome do Deployment no cluster
+spec:
+  replicas: 2 # Mantém 2 cópias idênticas da API rodando para Alta Disponibilidade
+  selector:
+    matchLabels:
+      app: api # Como o Deployment sabe quais Pods ele deve gerenciar
+  template:
+    # A partir daqui é o "molde" (Pod) que o Deployment vai usar para criar as réplicas
+    metadata:
+      labels:
+        app: api # Etiqueta colocada em cada Pod criado
+    spec:
+      containers:
+      - name: api
+        image: meuregistro/api:latest # Imagem Docker da nossa API
+        env: # Variáveis de ambiente injetadas dentro do container
+        # Note que usamos 'db' no URL, que é o nome do Service do MySQL (DNS interno do K8s)
+        - name: SPRING_DATASOURCE_URL
+          value: jdbc:mysql://db:3306/mecaniqa 
+        - name: SPRING_DATASOURCE_USERNAME
+          value: root
+        - name: SPRING_DATASOURCE_PASSWORD
+          value: root
+        # Usa o nome do Service do Redis ('redis') para se conectar ao cache
+        - name: SPRING_REDIS_HOST
+          value: redis 
+        - name: SPRING_REDIS_PORT
+          value: "6379"
+        ports:
+        - containerPort: 8080 # A porta em que o container Java escuta o tráfego
+
+--- # O separador '---' divide recursos independentes no mesmo arquivo YAML
+
+# ==============================================================================
+# BLOCO 2: SERVICE (Roteador de Rede / Exposição)
+# Objetivo: Criar um ponto de acesso estático para os Pods da API e expô-los
+# para a internet, permitindo que as oficinas clientes acessem o sistema.
+# ==============================================================================
+apiVersion: v1
+kind: Service # Indica que este recurso é responsável por rede e roteamento
+metadata:
+  name: api-service # Nome do Service
+spec:
+  type: LoadBalancer # IMPORTANTE: Cria um IP público/porta para acesso externo pela internet
+  selector:
+    app: api # Redireciona o tráfego para os Pods que tenham a etiqueta 'app: api'
+  ports:
+    - protocol: TCP
+      port: 8080 # A porta exposta pelo Service
+      targetPort: 8080 # A porta de destino lá no container (Pod)

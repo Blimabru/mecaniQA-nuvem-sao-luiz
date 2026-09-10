@@ -1,0 +1,50 @@
+# ==============================================================================
+# BLOCO 1: DEPLOYMENT (Gerente de Pods do Banco de Dados)
+# Objetivo: Garantir que o container do MySQL esteja sempre rodando.
+# ==============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deployment
+spec:
+  replicas: 1 # Apenas 1 instância do banco de dados neste laboratório
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.0 # Baixa a imagem oficial do MySQL
+        env:
+        - name: MYSQL_DATABASE
+          value: mecaniqa # Cria automaticamente a base de dados 'mecaniqa'
+        - name: MYSQL_ROOT_PASSWORD
+          value: root # Define a senha de root (admin)
+        ports:
+        - containerPort: 3306 # Porta padrão do banco MySQL
+        # Obs: Para um ambiente produtivo real, declararíamos aqui um Persistent Volume 
+        # (PVC) para garantir a persistência avançada dos arquivos do banco.
+
+---
+
+# ==============================================================================
+# BLOCO 2: SERVICE (Roteador de Rede Interno)
+# Objetivo: Criar um nome de rede fixo (DNS) chamado 'db' para o MySQL,
+# que seja acessível apenas por outros containers DENTRO do cluster.
+# ==============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: db # Este nome ('db') vira o endereço na rede. É como a API o encontra!
+spec:
+  type: ClusterIP # IMPORTANTE: Mantém o serviço invisível/inacessível da internet externa (Segurança)
+  selector:
+    app: mysql # Liga este Service aos Pods do MySQL
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306

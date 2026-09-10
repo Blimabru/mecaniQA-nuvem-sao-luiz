@@ -1,0 +1,43 @@
+# ==============================================================================
+# BLOCO 1: DEPLOYMENT (Gerente de Pods do Cache)
+# Objetivo: Garantir que o servidor de cache em memória (Redis) esteja rodando.
+# ==============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-deployment
+spec:
+  replicas: 1 # Apenas 1 instância do cache
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:alpine # Baixa a versão oficial leve do Redis baseada em Alpine Linux
+        ports:
+        - containerPort: 6379 # Porta padrão do Redis
+
+---
+
+# ==============================================================================
+# BLOCO 2: SERVICE (Roteador de Rede Interno)
+# Objetivo: Criar um endereço fixo chamado 'redis' para a API se comunicar
+# sem expor o banco de cache para a internet.
+# ==============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis # Este nome vira o endereço de rede na string de conexão da API
+spec:
+  type: ClusterIP # IMPORTANTE: Apenas tráfego interno do cluster é permitido
+  selector:
+    app: redis # Liga o Service aos Pods do Redis
+  ports:
+    - protocol: TCP
+      port: 6379
+      targetPort: 6379
