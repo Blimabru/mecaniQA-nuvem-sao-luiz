@@ -1,59 +1,77 @@
-# MecaniQA — Infraestrutura de Contêineres
+# MecaniQA
 
-## Objetivo
+## Teste com Docker Compose
 
-Estabilizar o sistema legado por meio do isolamento da API Java, do MySQL e do
-Redis na camada de virtualização de contêineres.
-
-## Arquitetura da Solução
-
-A solução é composta pelos seguintes serviços:
-
-- **API:** aplicação Java empacotada localmente.
-- **Banco de dados:** MySQL 8.0, obtido do Registry oficial.
-- **Cache:** Redis Alpine, obtido do Registry oficial.
-
-O `Dockerfile` utiliza `eclipse-temurin:17-jdk-alpine`, uma imagem otimizada por
-compartilhar o kernel do sistema hospedeiro. A aplicação é copiada para
-`/app`, utiliza a porta `8080` e é executada em primeiro plano.
-
-## Orquestração e Fluxo de Execução
-
-O `docker-compose.yml` coordena a inicialização simultânea da API, do banco e
-do cache. Ao identificar a instrução `build`, o Docker Compose constrói
-localmente a imagem da API por meio do `Dockerfile`. As imagens oficiais do
-MySQL 8.0 e do Redis Alpine são consumidas diretamente do Registry.
-
-## Descoberta de Serviço
-
-Todos os serviços são conectados à rede virtual exclusiva
-`mecaniqa-network`. A comunicação interna utiliza resolução DNS por nome de
-serviço, permitindo que a API acesse `db` e `redis` sem depender de IPs fixos.
-
-## Persistência e Alta Disponibilidade
-
-Os dados do MySQL são preservados no volume `mysql_data`, montado em
-`/var/lib/mysql`. A política `restart: unless-stopped` reinicia
-automaticamente os contêineres após quedas, mantendo a disponibilidade dos
-serviços.
-
-## Instruções de Uso
-
-Pré-requisitos:
+### Pré-requisitos
 
 - Docker instalado e em execução.
-- Arquivo `app.jar` na raiz do projeto.
+- Arquivo `app.jar` na raiz do projeto, conforme definido no `Dockerfile`.
 
-Na raiz do repositório, execute:
+### Execução
+
+Na raiz do projeto, valide a configuração:
 
 ```bash
-docker-compose up -d --build
+docker compose config
 ```
 
-A API ficará disponível em `http://localhost:8080`.
-
-Para interromper os serviços:
+Inicie a API, o MySQL e o Redis:
 
 ```bash
-docker-compose down
+docker compose up --build
+```
+
+A API estará disponível em `http://localhost:8080`. Os serviços podem ser
+encerrados com `Ctrl+C`.
+
+### Limpeza
+
+Para remover os contêineres e a rede:
+
+```bash
+docker compose down
+```
+
+Para remover também os dados persistidos do MySQL:
+
+```bash
+docker compose down -v
+```
+
+## Teste com Kubernetes (K8s)
+
+### Execução
+
+Na raiz do projeto, aplique todos os manifestos do Kubernetes de uma única vez. Isso instruirá o Cluster a criar os Deployments e Services da nossa arquitetura:
+
+```bash
+kubectl apply -f k8s/
+```
+
+### Validação e Monitoramento
+
+Para verificar se todos os Pods (Java, MySQL e Redis) estão em execução:
+
+```bash
+kubectl get pods
+```
+
+Para verificar se o Service da API disponibilizou o IP/Porta de acesso externo:
+
+```bash
+kubectl get svc
+```
+
+Para inspecionar o cluster de forma visual, verificar uso de recursos e diagnosticar eventuais `CrashLoopBackOff`, utilize a interface do K9s:
+
+```bash
+k9s
+```
+
+### Limpeza (K8s)
+
+Para apagar todos os recursos e limpar o cluster, execute:
+
+```bash
+kubectl delete -f k8s/
 ```
