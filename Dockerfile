@@ -1,14 +1,16 @@
-# Usa uma imagem leve com JDK 17 para executar a aplicação.
+# Dockerfile da aplicação Java da MecaniQA.
+# Essa imagem empacota o backend e o executa em um container isolado.
 FROM eclipse-temurin:17-jdk-alpine
 
-# Define o diretório de trabalho do contêiner.
+# Diretório de trabalho dentro do container
 WORKDIR /app
 
-# Copia o pacote JAR para o contêiner.
-COPY app.jar app.jar
+# Copia o arquivo JAR gerado pela aplicação para dentro da imagem.
+# O arquivo app.jar deve existir na raiz do projeto antes do build.
+COPY app.jar /app/app.jar
 
-# Documenta a porta utilizada pela API.
+# Expõe a porta da aplicação para comunicação externa
 EXPOSE 8080
 
-# Inicia a aplicação Java em primeiro plano.
-CMD ["java", "-jar", "app.jar"]
+# Comando de inicialização da API Java
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

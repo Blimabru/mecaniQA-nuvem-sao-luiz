@@ -1,46 +1,74 @@
-version: '3.8' # Define a versão da especificação do Compose.
-
-services: # Declara os serviços executados pela aplicação.
+# Arquivo principal de orquestração do ecossistema da MecaniQA.
+# O Docker Compose sobe a API Java, o MySQL e o Redis em uma rede interna
+# para que a aplicação possa se comunicar por nome de serviço.
+services:
   api:
-    build: . # Constrói a imagem usando o Dockerfile do diretório atual.
-    restart: unless-stopped # Reinicia o serviço, exceto quando parado manualmente.
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mecaniqa-api:local
+    container_name: mecaniqa-api
+    restart: unless-stopped
     ports:
-      - "8080:8080" # Publica a porta da API no host.
-    environment: # Define as configurações da aplicação.
-      - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/mecaniqa # URL do MySQL.
-      - SPRING_DATASOURCE_USERNAME=root # Usuário de acesso ao banco.
-      - SPRING_DATASOURCE_PASSWORD=root # Senha de acesso ao banco.
-      - SPRING_REDIS_HOST=redis # Nome do serviço Redis na rede interna.
-      - SPRING_REDIS_PORT=6379 # Porta interna do Redis.
-    depends_on: # Inicia a API após os serviços dependentes.
-      - db # Serviço de banco de dados.
-      - redis # Serviço de cache.
+      - "8080:8080" # expõe a API na porta 8080 do host
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/mecaniqa?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: "6379"
+    depends_on:
+      db:
+        condition: service_healthy # aguarda o banco ficar disponível
+      redis:
+        condition: service_started
     networks:
-      - mecaniqa-network # Conecta a API à rede interna.
+      - mecaniqa-network
 
   db:
-    image: mysql:8.0 # Utiliza o MySQL na versão 8.0.
-    restart: unless-stopped # Reinicia o serviço, exceto quando parado manualmente.
+    build:
+      context: ./docker/mysql
+      dockerfile: Dockerfile
+    image: mecaniqa-mysql:8.0
+    container_name: mecaniqa-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: mecaniqa
+      MYSQL_ROOT_PASSWORD: root
     ports:
-      - "3306:3306" # Publica a porta do MySQL no host.
-    environment: # Define a configuração inicial do banco.
-      - MYSQL_DATABASE=mecaniqa # Cria o banco informado na inicialização.
-      - MYSQL_ROOT_PASSWORD=root # Define a senha do usuário administrador.
+      - "3306:3306" # porta do MySQL exposta para acesso local
     volumes:
-      - mysql_data:/var/lib/mysql # Persiste os dados do MySQL.
+      - mysql_data:/var/lib/mysql # persistência dos dados do banco
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks:
-      - mecaniqa-network # Conecta o banco à rede interna.
+      - mecaniqa-network
 
   redis:
-    image: redis:alpine # Utiliza uma imagem leve do Redis.
-    restart: unless-stopped # Reinicia o serviço, exceto quando parado manualmente.
+    build:
+      context: ./docker/redis
+      dockerfile: Dockerfile
+    image: mecaniqa-redis:alpine
+    container_name: mecaniqa-redis
+    restart: unless-stopped
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     ports:
-      - "6379:6379" # Publica a porta do Redis no host.
+      - "6379:6379" # porta do Redis exposta para acesso local
+    volumes:
+      - redis_data:/data # persistência dos dados do cache
     networks:
-      - mecaniqa-network # Conecta o Redis à rede interna.
+      - mecaniqa-network
 
-volumes: # Declara os volumes persistentes.
-  mysql_data: # Armazena os dados do MySQL.
+# Volumes persistentes para manter dados mesmo após reinício do ambiente
+volumes:
+  mysql_data:
+  redis_data:
 
-networks: # Declara as redes compartilhadas pelos serviços.
-  mecaniqa-network: # Isola a comunicação interna da aplicação.
+# Rede interna compartilhada pelos serviços da aplicação
+networks:
+  mecaniqa-network:
+    driver: bridge

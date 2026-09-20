@@ -1,77 +1,112 @@
-# MecaniQA
+# MecaniQA Infrastructure
 
-## Teste com Docker Compose
+Este repositório contém a infraestrutura necessária para a atividade OAT 1 da MecâniQA Tech, cobrindo empacotamento de serviços, orquestração local com Docker Compose, gestão declarativa com Kubernetes e provisionamento inicial em Terraform.
 
-### Pré-requisitos
+**Membros da Equipe:**
+1. Bruno Moreira Lima
+2. Claudio Pales Costa
+3. Gabriel Honorato Santos Ferraz
+4. Kéven Moraes Patrício
+5. Tiago Ferraz de Novais
 
-- Docker instalado e em execução.
-- Arquivo `app.jar` na raiz do projeto, conforme definido no `Dockerfile`.
+## Requisitos atendidos
 
-### Execução
+- Dockerfile para a aplicação Java.
+- Dockerfile isolado para MySQL.
+- Dockerfile isolado para Redis.
+- docker-compose.yml com rede interna, DNS por nome de serviço e persistência de dados.
+- Manifestos declarativos em Kubernetes para API, MySQL e Redis.
+- Configuração inicial em Terraform para provisionar a infraestrutura local via Docker.
 
-Na raiz do projeto, valide a configuração:
+## Estrutura do projeto
+
+- Dockerfile: imagem da API Java.
+- docker/mysql/Dockerfile: imagem customizada do MySQL.
+- docker/redis/Dockerfile: imagem customizada do Redis.
+- docker-compose.yml: orquestração local completa.
+- k8s/: manifests do Kubernetes.
+- terraform/: provisionamento inicial com Terraform.
+
+## Pré-requisitos
+
+- Docker e Docker Compose instalados.
+- Terraform instalado, se for usar a infraestrutura em IaC.
+- Arquivo app.jar na raiz do projeto, conforme exigido pela imagem da API Java.
+
+## Execução com Docker Compose
+
+Valide a configuração:
 
 ```bash
 docker compose config
 ```
 
-Inicie a API, o MySQL e o Redis:
+Suba todo o ecossistema:
 
 ```bash
 docker compose up --build
 ```
 
-A API estará disponível em `http://localhost:8080`. Os serviços podem ser
-encerrados com `Ctrl+C`.
+A API ficará disponível em http://localhost:8080.
 
-### Limpeza
-
-Para remover os contêineres e a rede:
+Para remover os containers e preservar os volumes:
 
 ```bash
 docker compose down
 ```
 
-Para remover também os dados persistidos do MySQL:
+Para remover também os dados persistidos:
 
 ```bash
 docker compose down -v
 ```
 
-## Teste com Kubernetes (K8s)
+## Execução com Kubernetes
 
-### Execução
-
-Na raiz do projeto, aplique todos os manifestos do Kubernetes de uma única vez. Isso instruirá o Cluster a criar os Deployments e Services da nossa arquitetura:
+Aplicar os manifestos:
 
 ```bash
 kubectl apply -f k8s/
 ```
 
-### Validação e Monitoramento
-
-Para verificar se todos os Pods (Java, MySQL e Redis) estão em execução:
+Verificar pods:
 
 ```bash
 kubectl get pods
 ```
 
-Para verificar se o Service da API disponibilizou o IP/Porta de acesso externo:
+Verificar serviços:
 
 ```bash
 kubectl get svc
 ```
 
-Para inspecionar o cluster de forma visual, verificar uso de recursos e diagnosticar eventuais `CrashLoopBackOff`, utilize a interface do K9s:
+Monitorar o cluster com K9s:
 
 ```bash
 k9s
 ```
 
-### Limpeza (K8s)
-
-Para apagar todos os recursos e limpar o cluster, execute:
+Remover os recursos:
 
 ```bash
 kubectl delete -f k8s/
 ```
+
+## Provisionamento com Terraform
+
+A partir da pasta terraform:
+
+```bash
+terraform init
+terraform plan
+terraform apply
+```
+
+Para destruir os recursos provisionados:
+
+```bash
+terraform destroy
+```
+
+> O ambiente Terraform está configurado para provisionar os containers do Docker localmente, representando a base inicial de infraestrutura como código da solução.

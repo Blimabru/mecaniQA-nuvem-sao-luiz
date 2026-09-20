@@ -7,7 +7,7 @@ kind: Deployment
 metadata:
   name: redis-deployment
 spec:
-  replicas: 1 # Apenas 1 instância do cache
+  replicas: 1
   selector:
     matchLabels:
       app: redis
@@ -18,25 +18,40 @@ spec:
     spec:
       containers:
       - name: redis
-        image: redis:alpine # Baixa a versão oficial leve do Redis baseada em Alpine Linux
+        image: redis:alpine
         ports:
-        - containerPort: 6379 # Porta padrão do Redis
+        - containerPort: 6379
+        volumeMounts:
+        - name: redis-storage
+          mountPath: /data
+      volumes:
+      - name: redis-storage
+        persistentVolumeClaim:
+          claimName: redis-pvc
 
 ---
 
-# ==============================================================================
-# BLOCO 2: SERVICE (Roteador de Rede Interno)
-# Objetivo: Criar um endereço fixo chamado 'redis' para a API se comunicar
-# sem expor o banco de cache para a internet.
-# ==============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+
 apiVersion: v1
 kind: Service
 metadata:
-  name: redis # Este nome vira o endereço de rede na string de conexão da API
+  name: redis
 spec:
-  type: ClusterIP # IMPORTANTE: Apenas tráfego interno do cluster é permitido
+  type: ClusterIP
   selector:
-    app: redis # Liga o Service aos Pods do Redis
+    app: redis
   ports:
     - protocol: TCP
       port: 6379

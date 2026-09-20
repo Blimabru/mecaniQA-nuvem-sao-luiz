@@ -7,7 +7,7 @@ kind: Deployment
 metadata:
   name: mysql-deployment
 spec:
-  replicas: 1 # Apenas 1 instância do banco de dados neste laboratório
+  replicas: 1
   selector:
     matchLabels:
       app: mysql
@@ -18,32 +18,45 @@ spec:
     spec:
       containers:
       - name: mysql
-        image: mysql:8.0 # Baixa a imagem oficial do MySQL
+        image: mysql:8.0
         env:
         - name: MYSQL_DATABASE
-          value: mecaniqa # Cria automaticamente a base de dados 'mecaniqa'
+          value: mecaniqa
         - name: MYSQL_ROOT_PASSWORD
-          value: root # Define a senha de root (admin)
+          value: root
         ports:
-        - containerPort: 3306 # Porta padrão do banco MySQL
-        # Obs: Para um ambiente produtivo real, declararíamos aqui um Persistent Volume 
-        # (PVC) para garantir a persistência avançada dos arquivos do banco.
+        - containerPort: 3306
+        volumeMounts:
+        - name: mysql-storage
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: mysql-storage
+        persistentVolumeClaim:
+          claimName: mysql-pvc
 
 ---
 
-# ==============================================================================
-# BLOCO 2: SERVICE (Roteador de Rede Interno)
-# Objetivo: Criar um nome de rede fixo (DNS) chamado 'db' para o MySQL,
-# que seja acessível apenas por outros containers DENTRO do cluster.
-# ==============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+
 apiVersion: v1
 kind: Service
 metadata:
-  name: db # Este nome ('db') vira o endereço na rede. É como a API o encontra!
+  name: db
 spec:
-  type: ClusterIP # IMPORTANTE: Mantém o serviço invisível/inacessível da internet externa (Segurança)
+  type: ClusterIP
   selector:
-    app: mysql # Liga este Service aos Pods do MySQL
+    app: mysql
   ports:
     - protocol: TCP
       port: 3306
