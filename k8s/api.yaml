@@ -20,7 +20,10 @@ spec:
     spec:
       containers:
       - name: api
-        image: meuregistro/api:latest # Imagem Docker da nossa API
+        # Utiliza a mesma imagem construída pelo Docker Compose.
+        # Em um cluster remoto, publique essa imagem em um registry acessível.
+        image: mecaniqa-api:local
+        imagePullPolicy: IfNotPresent
         env: # Variáveis de ambiente injetadas dentro do container
         # Note que usamos 'db' no URL, que é o nome do Service do MySQL (DNS interno do K8s)
         - name: SPRING_DATASOURCE_URL

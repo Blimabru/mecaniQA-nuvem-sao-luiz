@@ -1,63 +1,84 @@
 # ==============================================================================
-# BLOCO 1: DEPLOYMENT (Gerente de Pods do Banco de Dados)
-# Objetivo: Garantir que o container do MySQL esteja sempre rodando.
+# BLOCO 1: DEPLOYMENT DO MYSQL
+# O Deployment mantém o Pod do banco em execução e permite que o Kubernetes o
+# recrie caso ocorra uma falha. Neste laboratório, é mantida uma réplica porque
+# o banco utiliza um volume com acesso exclusivo de escrita.
 # ==============================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mysql-deployment
 spec:
+  # Quantidade desejada de Pods do banco de dados.
   replicas: 1
+  # Relaciona este Deployment aos Pods que possuem a label app=mysql.
   selector:
     matchLabels:
       app: mysql
   template:
     metadata:
+      # A label é utilizada pelo Deployment e pelo Service para localizar o Pod.
       labels:
         app: mysql
     spec:
       containers:
       - name: mysql
+        # Imagem oficial do MySQL utilizada como base do serviço de persistência.
         image: mysql:8.0
         env:
+        # Cria a base inicial e define a credencial administrativa do laboratório.
         - name: MYSQL_DATABASE
           value: mecaniqa
         - name: MYSQL_ROOT_PASSWORD
           value: root
         ports:
+        # Porta interna utilizada pela aplicação para acessar o banco.
         - containerPort: 3306
         volumeMounts:
+        # Monta o armazenamento persistente no diretório padrão do MySQL.
         - name: mysql-storage
           mountPath: /var/lib/mysql
       volumes:
+      # Vincula o volume do Pod ao PersistentVolumeClaim declarado abaixo.
       - name: mysql-storage
         persistentVolumeClaim:
           claimName: mysql-pvc
 
 ---
 
+# BLOCO 2: PERSISTENTVOLUMECLAIM DO MYSQL
+# Solicita armazenamento persistente para que os dados não sejam perdidos quando
+# o Pod for recriado ou o Deployment for reiniciado.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: mysql-pvc
 spec:
+  # ReadWriteOnce permite montar o volume para leitura e escrita por um único nó.
   accessModes:
     - ReadWriteOnce
   resources:
+    # Capacidade solicitada para os dados do banco no ambiente de laboratório.
     requests:
       storage: 5Gi
 
 ---
 
+# BLOCO 3: SERVICE INTERNO DO MYSQL
+# O Service fornece um endereço estável dentro do cluster. A aplicação acessa o
+# banco pelo nome DNS "db", sem depender do IP variável do Pod.
 apiVersion: v1
 kind: Service
 metadata:
   name: db
 spec:
+  # ClusterIP restringe o acesso ao próprio cluster, evitando exposição externa.
   type: ClusterIP
+  # Encaminha requisições para os Pods que possuem a label app=mysql.
   selector:
     app: mysql
   ports:
+    # Expõe a porta padrão do MySQL no endereço interno fornecido pelo Service.
     - protocol: TCP
       port: 3306
       targetPort: 3306

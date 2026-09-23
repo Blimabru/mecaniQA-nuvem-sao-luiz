@@ -1,58 +1,77 @@
 # ==============================================================================
-# BLOCO 1: DEPLOYMENT (Gerente de Pods do Cache)
-# Objetivo: Garantir que o servidor de cache em memória (Redis) esteja rodando.
+# BLOCO 1: DEPLOYMENT DO REDIS
+# O Deployment mantém o serviço de cache em execução e permite que o Kubernetes
+# recrie o Pod caso ele seja encerrado ou apresente falha.
 # ==============================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: redis-deployment
 spec:
+  # Quantidade desejada de Pods do Redis neste ambiente.
   replicas: 1
+  # Relaciona este Deployment aos Pods que possuem a label app=redis.
   selector:
     matchLabels:
       app: redis
   template:
     metadata:
+      # A label permite que o Deployment e o Service encontrem este Pod.
       labels:
         app: redis
     spec:
       containers:
       - name: redis
+        # Imagem oficial leve do Redis utilizada para o serviço de cache.
         image: redis:alpine
         ports:
+        # Porta interna padrão utilizada para conexões com o Redis.
         - containerPort: 6379
         volumeMounts:
+        # Monta o armazenamento persistente no diretório de dados do Redis.
         - name: redis-storage
           mountPath: /data
       volumes:
+      # Vincula o volume do Pod ao PersistentVolumeClaim declarado abaixo.
       - name: redis-storage
         persistentVolumeClaim:
           claimName: redis-pvc
 
 ---
 
+# BLOCO 2: PERSISTENTVOLUMECLAIM DO REDIS
+# Solicita armazenamento persistente para preservar os dados gravados pelo Redis
+# durante reinicializações ou recriações do Pod.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: redis-pvc
 spec:
+  # ReadWriteOnce permite montar o volume para leitura e escrita por um único nó.
   accessModes:
     - ReadWriteOnce
   resources:
+    # Capacidade solicitada para o armazenamento do cache no laboratório.
     requests:
       storage: 2Gi
 
 ---
 
+# BLOCO 3: SERVICE INTERNO DO REDIS
+# O Service cria um endereço DNS estável dentro do cluster. A API acessa o cache
+# pelo nome "redis", sem depender do IP variável do Pod.
 apiVersion: v1
 kind: Service
 metadata:
   name: redis
 spec:
+  # ClusterIP mantém o cache acessível somente pelos serviços do cluster.
   type: ClusterIP
+  # Encaminha requisições para os Pods que possuem a label app=redis.
   selector:
     app: redis
   ports:
+    # Expõe a porta padrão do Redis no endereço interno fornecido pelo Service.
     - protocol: TCP
       port: 6379
       targetPort: 6379
