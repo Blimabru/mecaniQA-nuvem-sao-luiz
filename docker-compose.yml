@@ -1,38 +1,52 @@
 # Arquivo principal de orquestração do ecossistema da MecaniQA.
-# O Docker Compose sobe a API Java, o MySQL e o Redis em uma rede interna
-# para que a aplicação possa se comunicar por nome de serviço.
+#
+# Este arquivo define a infraestrutura local de forma declarativa e permite que a
+# aplicação Java, o banco de dados MySQL e o cache Redis sejam executados em uma
+# mesma rede virtual. A comunicação entre serviços é realizada por meio do nome do
+# serviço, em vez de endereços IP fixos, o que é a prática recomendada em redes
+# Docker internas.
 services:
+  # API Java responsável por expor os endpoints de teste e healthcheck.
+  # A imagem é construída a partir do Dockerfile da raiz do projeto.
   api:
     build:
+      # O contexto inclui o Dockerfile e o artefato build/app.jar.
       context: .
       dockerfile: Dockerfile
     image: mecaniqa-api:local
     container_name: mecaniqa-api
+    # Reinicia a API automaticamente, exceto quando ela for parada manualmente.
     restart: unless-stopped
     ports:
       - "8080:8080" # expõe a API na porta 8080 do host
     environment:
+      # Os nomes db e redis são resolvidos pelo DNS da rede Docker compartilhada.
       SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/mecaniqa?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: root
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: "6379"
     depends_on:
+      # A API somente inicia após o banco responder ao healthcheck.
       db:
         condition: service_healthy # aguarda o banco ficar disponível
+      # O Redis precisa estar iniciado antes da API.
       redis:
         condition: service_started
     networks:
       - mecaniqa-network
 
+  # Banco de dados relacional utilizado pela aplicação.
   db:
     build:
+      # Utiliza a imagem customizada armazenada em docker/mysql.
       context: ./docker/mysql
       dockerfile: Dockerfile
     image: mecaniqa-mysql:8.0
     container_name: mecaniqa-db
     restart: unless-stopped
     environment:
+      # Variáveis utilizadas pela imagem oficial para inicializar o MySQL.
       MYSQL_DATABASE: mecaniqa
       MYSQL_ROOT_PASSWORD: root
     ports:
@@ -40,6 +54,7 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql # persistência dos dados do banco
     healthcheck:
+      # Verifica se o servidor MySQL está aceitando conexões.
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
       interval: 10s
       timeout: 5s
@@ -48,8 +63,10 @@ services:
     networks:
       - mecaniqa-network
 
+  # Serviço de cache utilizado pela aplicação.
   redis:
     build:
+      # Utiliza a imagem e a configuração customizadas armazenadas em docker/redis.
       context: ./docker/redis
       dockerfile: Dockerfile
     image: mecaniqa-redis:alpine
@@ -63,12 +80,19 @@ services:
     networks:
       - mecaniqa-network
 
-# Volumes persistentes para manter dados mesmo após reinício do ambiente
+# Volumes persistentes para manter dados mesmo após reinício do ambiente.
+# A persistência é fundamental em bases de dados e cache, porque elimina a perda
+# de dados em reinicializações de contêiner e melhora a resiliência do ambiente.
 volumes:
+  # Volume nomeado para persistir os dados do MySQL fora do ciclo de vida do container.
   mysql_data:
+  # Volume nomeado para persistir os dados do Redis.
   redis_data:
 
-# Rede interna compartilhada pelos serviços da aplicação
+# Rede interna compartilhada pelos serviços da aplicação.
+# A rede bridge é utilizada para isolar a comunicação entre os containers e evitar
+# exposição desnecessária de portas para o ambiente externo.
 networks:
+  # Rede bridge que permite a comunicação por nome entre API, MySQL e Redis.
   mecaniqa-network:
     driver: bridge
