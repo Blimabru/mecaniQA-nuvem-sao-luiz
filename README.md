@@ -281,6 +281,47 @@ kubectl get svc
 k9s
 ```
 
+### O que acontece no Kubernetes
+
+1. `kubectl apply -f k8s/` lê os três arquivos YAML e solicita ao cluster a criação dos Deployments, Services e volumes persistentes.
+2. Os Deployments criam e mantêm os Pods da API, do MySQL e do Redis.
+3. O Service `db` fornece um endereço interno estável para o MySQL.
+4. O Service `redis` fornece um endereço interno estável para o Redis.
+5. O Service `api-service` expõe a API para acesso externo por meio do tipo `LoadBalancer`.
+6. `kubectl get pods` mostra o estado dos Pods. O estado `Running` indica que o processo está em execução; estados como `Pending`, `CrashLoopBackOff` ou `ImagePullBackOff` indicam que é necessário investigar o motivo.
+7. `kubectl get svc` mostra os endereços e portas disponibilizados pelos Services.
+
+Para investigar um recurso específico:
+
+```powershell
+kubectl describe pod <nome-do-pod>
+kubectl logs <nome-do-pod>
+```
+
+Substitua `<nome-do-pod>` pelo nome exibido em `kubectl get pods`.
+
+### Como utilizar o K9s
+
+O K9s é uma interface de terminal para acompanhar o cluster sem executar vários comandos `kubectl` manualmente. Ele não cria a infraestrutura sozinho; apenas facilita a inspeção e o diagnóstico dos recursos já aplicados.
+
+Inicie o K9s na raiz do projeto ou em qualquer pasta:
+
+```powershell
+k9s
+```
+
+Com a interface aberta:
+
+- digite `:pods` para listar os Pods;
+- digite `:svc` para listar os Services;
+- digite `:deploy` para listar os Deployments;
+- selecione um recurso e pressione `Enter` para visualizar seus detalhes;
+- pressione `l` para consultar os logs do recurso selecionado;
+- pressione `d` para visualizar a descrição técnica do recurso;
+- pressione `q` para sair do K9s.
+
+O uso do K9s permite verificar se os Pods da API, do MySQL e do Redis estão ativos e identificar problemas como `CrashLoopBackOff`, falhas de imagem ou indisponibilidade de recursos.
+
 A API utiliza a imagem local `mecaniqa-api:local`, a mesma definida no [docker-compose.yml](docker-compose.yml) e construída pelo [Dockerfile](Dockerfile). Em um cluster local com acesso ao Docker Desktop, essa imagem pode ser utilizada diretamente. Em um cluster remoto, publique a imagem em um registry acessível pelo cluster e substitua o valor de `image` em [k8s/api.yaml](k8s/api.yaml) pelo endereço publicado, por exemplo `ghcr.io/blimabru/mecaniqa-api:1.0`.
 
 Para remover os recursos:
@@ -292,6 +333,14 @@ kubectl delete -f k8s/
 ## Provisionamento com Terraform
 
 O Terraform descreve uma infraestrutura Docker local composta pela rede `mecaniqa-network`, pelos volumes persistentes e pelos contêineres MySQL e Redis. O arquivo [terraform/main.tf](terraform/main.tf) não provisiona a API Java.
+
+O fluxo do Terraform é dividido em etapas:
+
+1. `init` prepara o diretório e baixa o provider Docker necessário.
+2. `validate` verifica a estrutura e a sintaxe dos arquivos Terraform.
+3. `plan` apresenta o que será criado, alterado ou removido, sem aplicar mudanças.
+4. `apply` cria os recursos aprovados no Docker local.
+5. `destroy` remove os recursos que foram criados pelo Terraform.
 
 Na pasta `terraform/`, execute:
 
