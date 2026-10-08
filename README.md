@@ -93,7 +93,8 @@ A aplicação é propositalmente simples e não depende de frameworks externos. 
 ├── k8s/
 │   ├── api.yaml                  # Deployment e Service da API
 │   ├── mysql.yaml                # MySQL, Service e persistência
-│   └── redis.yaml                # Redis, Service e persistência
+│   ├── redis.yaml                # Redis, Service e persistência
+│   └── prometheus.yaml           # Monitoramento e descoberta de Services
 ├── terraform/
 │   └── main.tf                   # Provisionamento local com Terraform
 ├── docs/oat1/                    # Documentação e guias de referência
@@ -268,7 +269,8 @@ Os manifestos em [k8s](k8s) definem:
 
 - `api.yaml`: Deployment com duas réplicas da API e Service `LoadBalancer`;
 - `mysql.yaml`: Deployment, Service interno `db` e armazenamento persistente de 5 GiB;
-- `redis.yaml`: Deployment, Service interno `redis` e armazenamento persistente de 2 GiB.
+- `redis.yaml`: Deployment, Service interno `redis` e armazenamento persistente de 2 GiB;
+- `prometheus.yaml`: Prometheus, interface interna na porta 9090 e descoberta de Services do namespace que tenham as anotações de métricas.
 
 ### Aplicar os recursos
 
@@ -283,13 +285,22 @@ k9s
 
 ### O que acontece no Kubernetes
 
-1. `kubectl apply -f k8s/` lê os três arquivos YAML e solicita ao cluster a criação dos Deployments, Services e volumes persistentes.
-2. Os Deployments criam e mantêm os Pods da API, do MySQL e do Redis.
+1. `kubectl apply -f k8s/` lê os arquivos YAML e solicita ao cluster a criação dos Deployments, Services, permissões e volumes persistentes.
+2. Os Deployments criam e mantêm os Pods da API, do MySQL, do Redis e do Prometheus.
 3. O Service `db` fornece um endereço interno estável para o MySQL.
 4. O Service `redis` fornece um endereço interno estável para o Redis.
 5. O Service `api-service` expõe a API para acesso externo por meio do tipo `LoadBalancer`.
-6. `kubectl get pods` mostra o estado dos Pods. O estado `Running` indica que o processo está em execução; estados como `Pending`, `CrashLoopBackOff` ou `ImagePullBackOff` indicam que é necessário investigar o motivo.
-7. `kubectl get svc` mostra os endereços e portas disponibilizados pelos Services.
+6. O Prometheus coleta suas próprias métricas e descobre endpoints de Services do mesmo namespace marcados com as anotações `prometheus.io/scrape: "true"` e `prometheus.io/port: "<porta>"`. A anotação opcional `prometheus.io/path` define o caminho (por padrão, `/metrics`), e `prometheus.io/scheme` permite definir `http` ou `https`.
+7. `kubectl get pods` mostra o estado dos Pods. O estado `Running` indica que o processo está em execução; estados como `Pending`, `CrashLoopBackOff` ou `ImagePullBackOff` indicam que é necessário investigar o motivo.
+8. `kubectl get svc` mostra os endereços e portas disponibilizados pelos Services.
+
+Para abrir a interface do Prometheus localmente:
+
+```powershell
+kubectl port-forward service/prometheus 9090:9090
+```
+
+Depois acesse <http://localhost:9090> e consulte **Status > Targets** para verificar os alvos descobertos. O armazenamento de métricas usa `emptyDir`, portanto os dados são descartados quando o Pod do Prometheus é recriado.
 
 Para investigar um recurso específico:
 
@@ -320,7 +331,7 @@ Com a interface aberta:
 - pressione `d` para visualizar a descrição técnica do recurso;
 - pressione `q` para sair do K9s.
 
-O uso do K9s permite verificar se os Pods da API, do MySQL e do Redis estão ativos e identificar problemas como `CrashLoopBackOff`, falhas de imagem ou indisponibilidade de recursos.
+O uso do K9s permite verificar se os Pods da API, do MySQL, do Redis e do Prometheus estão ativos e identificar problemas como `CrashLoopBackOff`, falhas de imagem ou indisponibilidade de recursos.
 
 A API utiliza a imagem local `mecaniqa-api:local`, a mesma definida no [docker-compose.yml](docker-compose.yml) e construída pelo [Dockerfile](Dockerfile). Em um cluster local com acesso ao Docker Desktop, essa imagem pode ser utilizada diretamente. Em um cluster remoto, publique a imagem em um registry acessível pelo cluster e substitua o valor de `image` em [k8s/api.yaml](k8s/api.yaml) pelo endereço publicado, por exemplo `ghcr.io/blimabru/mecaniqa-api:1.0`.
 
