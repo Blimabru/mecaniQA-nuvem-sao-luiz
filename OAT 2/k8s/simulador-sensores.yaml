@@ -1,0 +1,81 @@
+# O Deployment mantém o simulador em execução e recria o Pod caso o processo
+# seja encerrado ou o Pod seja removido pelo cluster.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simulador-sensores
+  labels:
+    app: simulador-sensores
+spec:
+  # Uma réplica é suficiente para a demonstração e evita duplicar contadores.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: simulador-sensores
+  template:
+    metadata:
+      # O rótulo é usado pelo selector do Deployment e pelo Service.
+      labels:
+        app: simulador-sensores
+    spec:
+      containers:
+        - name: simulador-sensores
+          # A política IfNotPresent permite usar a imagem local em clusters de
+          # desenvolvimento, sem exigir publicação em um registry remoto.
+          image: mecaniqa-simulador-sensores:local
+          imagePullPolicy: IfNotPresent
+          env:
+            # A taxa de erro controlada produz dados para o painel de falhas.
+            - name: SENSOR_ERROR_RATE
+              value: "0.05"
+            - name: SENSOR_INTERVAL_SECONDS
+              value: "2"
+          ports:
+            # O nome metrics é reutilizado pelas probes e pelo targetPort.
+            - name: metrics
+              containerPort: 8000
+          readinessProbe:
+            # Somente Pods prontos recebem tráfego pelo Service.
+            httpGet:
+              path: /health
+              port: metrics
+            periodSeconds: 10
+          livenessProbe:
+            # A probe reinicia o contêiner quando o processo deixa de responder.
+            httpGet:
+              path: /health
+              port: metrics
+            periodSeconds: 15
+          resources:
+            # Requests participam do agendamento; limits impedem consumo
+            # ilimitado de recursos do nó.
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+---
+# O Service fornece um DNS estável e torna o endpoint acessível ao Prometheus.
+apiVersion: v1
+kind: Service
+metadata:
+  name: simulador-sensores
+  labels:
+    app: simulador-sensores
+  annotations:
+    # Estas anotações são lidas pelo relabeling do Prometheus para habilitar a
+    # coleta, definir a porta, o caminho e o protocolo do endpoint.
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: /metrics
+    prometheus.io/scheme: http
+spec:
+  # ClusterIP mantém o simulador restrito à rede interna do cluster.
+  type: ClusterIP
+  selector:
+    app: simulador-sensores
+  ports:
+    - name: metrics
+      port: 8000
+      targetPort: metrics
