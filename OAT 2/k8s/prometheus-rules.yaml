@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+data:
+  mecaniqa-alerts.yml: |
+    groups:
+      - name: mecaniqa-simulador
+        rules:
+          - alert: SensorSimulatorHighCPU
+            expr: |
+              sum by (pod) (rate(container_cpu_usage_seconds_total{namespace="default", pod=~"simulador-sensores-.*", container="simulador-sensores"}[5m]))
+              /
+              sum by (pod) (kube_pod_container_resource_requests{namespace="default", pod=~"simulador-sensores-.*", container="simulador-sensores", resource="cpu"}) > 0.80
+            for: 5m
+            labels:
+              severity: warning
+              category: infrastructure
+            annotations:
+              summary: CPU do simulador acima de 80%
+              description: O consumo de CPU do pod {{ $labels.pod }} permanece acima de 80% por 5 minutos.
+
+          - alert: SensorSimulatorHighMemory
+            expr: |
+              sum by (pod) (container_memory_working_set_bytes{namespace="default", pod=~"simulador-sensores-.*", container="simulador-sensores"})
+              /
+              sum by (pod) (kube_pod_container_resource_limits{namespace="default", pod=~"simulador-sensores-.*", container="simulador-sensores", resource="memory"}) > 0.80
+            for: 5m
+            labels:
+              severity: warning
+              category: infrastructure
+            annotations:
+              summary: Memória do simulador acima de 80%
+              description: O consumo de memória do pod {{ $labels.pod }} permanece acima de 80% do limite por 5 minutos.
+
+          - alert: SensorSimulatorHighErrorRate
+            expr: |
+              sum(rate(sensor_readings_total{status="error"}[5m]))
+              /
+              sum(rate(sensor_readings_total[5m])) > 0.10
+            for: 5m
+            labels:
+              severity: critical
+              category: application
+            annotations:
+              summary: Taxa de erro do simulador acima de 10%
+              description: Mais de 10% das leituras falharam nos últimos 5 minutos.
+
+          - alert: SensorSimulatorLowSuccessRate
+            expr: |
+              sum(rate(sensor_readings_total{status="ok"}[5m]))
+              /
+              sum(rate(sensor_readings_total[5m])) < 0.90
+            for: 5m
+            labels:
+              severity: critical
+              category: application
+            annotations:
+              summary: Taxa de sucesso do simulador abaixo de 90%
+              description: Menos de 90% das leituras foram processadas com sucesso nos últimos 5 minutos.
