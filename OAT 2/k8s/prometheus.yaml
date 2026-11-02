@@ -1,21 +1,47 @@
+# ==============================================================================
+# MECÂNIQA TECH - INFRAESTRUTURA DE OBSERVABILIDADE KUBERNETES
+# Módulo: OAT 2 - Monitoramento e Continuidade
+# Arquivo: prometheus.yaml
+# Descrição: Provisionamento do Prometheus Server com RBAC, Service Discovery
+#            dinâmico baseado em anotações de Services K8s e persistência TSDB.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. CONTROLE DE ACESSO BASEADO EM FUNÇÃO (RBAC - ROLE-BASED ACCESS CONTROL)
+# ------------------------------------------------------------------------------
+# Conta de serviço dedicada para execução do pod do Prometheus.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: prometheus
+  namespace: default
+  labels:
+    app: prometheus
+    component: monitoring
 ---
+# ClusterRole definindo as permissões mínimas necessárias para que o Prometheus
+# descubra automaticamente os alvos (targets) inspecionando a API do Kubernetes.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: prometheus
+  labels:
+    app: prometheus
+    component: monitoring
 rules:
+  # Permite operações de leitura (get, list, watch) nos recursos essenciais para descoberta de endpoints
   - apiGroups: [""]
     resources: ["endpoints", "pods", "services"]
     verbs: ["get", "list", "watch"]
 ---
+# Associação entre a ServiceAccount 'prometheus' e a ClusterRole 'prometheus'.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: prometheus
+  labels:
+    app: prometheus
+    component: monitoring
 subjects:
   - kind: ServiceAccount
     name: prometheus
@@ -25,42 +51,60 @@ roleRef:
   kind: ClusterRole
   name: prometheus
 ---
+# ------------------------------------------------------------------------------
+# 2. CONFIGURAÇÃO OPERACIONAL DO PROMETHEUS (CONFIGMAP)
+# ------------------------------------------------------------------------------
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: prometheus-config
+  namespace: default
+  labels:
+    app: prometheus
+    component: monitoring
 data:
   prometheus.yml: |
+    # Configurações globais de coleta e avaliação
     global:
-      scrape_interval: 15s
-      evaluation_interval: 15s
+      scrape_interval: 15s      # Frequência com que o Prometheus raspa métricas dos alvos
+      evaluation_interval: 15s  # Frequência com que as regras de alerta são avaliadas
 
+    # Carregamento automático de arquivos de regras e alarmes
     rule_files:
       - /etc/prometheus/rules/*.yml
 
+    # Definição dos trabalhos de coleta (Scrape Jobs)
     scrape_configs:
+      # Job 1: Auto-monitoramento da própria instância do Prometheus
       - job_name: prometheus
         static_configs:
           - targets: ["localhost:9090"]
 
+      # Job 2: Descoberta dinâmica de serviços do Kubernetes (SD - Service Discovery)
+      # Este job localiza qualquer Service K8s anotado com prometheus.io/scrape="true"
       - job_name: kubernetes-services
         kubernetes_sd_configs:
           - role: endpoints
         relabel_configs:
+          # Filtro 1: Mantém apenas os serviços que possuem a anotação prometheus.io/scrape = "true"
           - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
             action: keep
             regex: "true"
+          # Filtro 2: Valida se a porta especificada na anotação é numérica
           - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_port]
             action: keep
             regex: "[0-9]+"
+          # Transformação 1: Reescreve o esquema HTTP ou HTTPS conforme anotação (padrão: http)
           - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
             action: replace
             target_label: __scheme__
             regex: "(https?)"
+          # Transformação 2: Reescreve o caminho de coleta (/metrics) conforme anotação
           - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
             action: replace
             target_label: __metrics_path__
             regex: "(.+)"
+          # Transformação 3: Configura o endereço IP e porta do target combinando o endpoint com a porta anotada
           - source_labels:
               - __address__
               - __meta_kubernetes_service_annotation_prometheus_io_port
@@ -68,15 +112,23 @@ data:
             target_label: __address__
             regex: "([^:]+)(?::[0-9]+)?;([0-9]+)"
             replacement: "$1:$2"
+          # Enriquecimento: Adiciona rótulos informativos de namespace e nome do serviço
           - source_labels: [__meta_kubernetes_namespace]
             target_label: kubernetes_namespace
           - source_labels: [__meta_kubernetes_service_name]
             target_label: kubernetes_service
 ---
+# ------------------------------------------------------------------------------
+# 3. IMPLANTAÇÃO DO SERVIDOR PROMETHEUS (DEPLOYMENT)
+# ------------------------------------------------------------------------------
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: prometheus
+  namespace: default
+  labels:
+    app: prometheus
+    component: monitoring
 spec:
   replicas: 1
   selector:
@@ -89,22 +141,24 @@ spec:
     spec:
       serviceAccountName: prometheus
       securityContext:
-        fsGroup: 65534
+        fsGroup: 65534  # Permissão de escrita para o usuário nobody/nogroup da imagem Prometheus
       containers:
         - name: prometheus
           image: prom/prometheus:v2.55.1
           args:
             - --config.file=/etc/prometheus/prometheus.yml
             - --storage.tsdb.path=/prometheus
-            - --web.enable-lifecycle
+            - --web.enable-lifecycle  # Permite recarregamento dinâmico via chamada HTTP POST /-/reload
           ports:
             - name: web
               containerPort: 9090
+          # Verificação de prontidão para receber consultas
           readinessProbe:
             httpGet:
               path: /-/ready
               port: web
             periodSeconds: 10
+          # Verificação de vivacidade para recuperação automática em caso de travamento
           livenessProbe:
             httpGet:
               path: /-/healthy
@@ -118,12 +172,15 @@ spec:
               cpu: 500m
               memory: 512Mi
           volumeMounts:
+            # Montagem do arquivo principal de configuração
             - name: config
               mountPath: /etc/prometheus
               readOnly: true
+            # Montagem do diretório contendo as regras de alertas
             - name: rules
               mountPath: /etc/prometheus/rules
               readOnly: true
+            # Armazenamento temporário/local das séries temporais (TSDB)
             - name: data
               mountPath: /prometheus
       volumes:
@@ -136,12 +193,19 @@ spec:
         - name: data
           emptyDir: {}
 ---
+# ------------------------------------------------------------------------------
+# 4. EXPOSIÇÃO DO SERVIÇO PROMETHEUS (SERVICE)
+# ------------------------------------------------------------------------------
 apiVersion: v1
 kind: Service
 metadata:
   name: prometheus
+  namespace: default
+  labels:
+    app: prometheus
+    component: monitoring
 spec:
-  type: ClusterIP
+  type: ClusterIP  # Acesso interno ao cluster K8s; acessível externamente via port-forward
   selector:
     app: prometheus
   ports:

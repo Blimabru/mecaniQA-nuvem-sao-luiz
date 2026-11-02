@@ -1,36 +1,72 @@
+# ==============================================================================
+# MECÂNIQA TECH - ESCALONAMENTO AUTOMÁTICO HORIZONTAL DE PODS (HPA)
+# Módulo: OAT 2 - Monitoramento, Observabilidade e Continuidade
+# Arquivo: hpa.yaml
+# Descrição: Especificação do Horizontal Pod Autoscaler utilizando a API autoscaling/v2.
+#            Garante a elasticidade autônoma do simulador de sensores frente aos
+#            picos de tráfego IoT nos horários críticos das oficinas (08:00 e 17:00).
+# ==============================================================================
+
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: simulador-sensores
+  namespace: default
   labels:
     app: simulador-sensores
+    component: autoscaling
 spec:
+  # Alvo de escalonamento: associa o HPA diretamente ao Deployment da aplicação
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
     name: simulador-sensores
+
+  # Limites operacionais de replicação:
+  # - minReplicas: 1 réplica em regime de tráfego nominal (otimização de custos)
+  # - maxReplicas: até 5 réplicas durante tempestades de tráfego de sensores IoT
   minReplicas: 1
   maxReplicas: 5
+
+  # Políticas de comportamento de escala (Scaling Behavior):
+  # Controlam a velocidade e suavidade com que o Kubernetes adiciona ou remove pods
   behavior:
+    # Comportamento de Expansão (Scale Up):
+    # Deve ser agressivo e rápido para absorver picos repentinos sem elevar a latência
     scaleUp:
-      stabilizationWindowSeconds: 60
+      stabilizationWindowSeconds: 60  # Avalia a média em janela de 1 minuto
       policies:
+        # Permite dobrar o número de réplicas (+100%) a cada período de 60 segundos
         - type: Percent
           value: 100
           periodSeconds: 60
+
+    # Comportamento de Redução (Scale Down):
+    # Deve ser conservador e gradual para evitar o fenômeno de "flapping/thrashing"
+    # (pods sendo terminados e recriados ciclicamente em caso de oscilação de carga)
     scaleDown:
-      stabilizationWindowSeconds: 300
+      stabilizationWindowSeconds: 300  # Aguarda 5 minutos de estabilidade antes de reduzir
       policies:
+        # Reduz no máximo 25% do total de pods ativos a cada 60 segundos
         - type: Percent
           value: 25
           periodSeconds: 60
+
+  # Métricas balizadoras do escalonamento (coletadas via Metrics Server):
+  # O HPA calcula as réplicas desejadas pela fórmula:
+  # desiredReplicas = ceil[currentReplicas * (currentMetricValue / targetMetricValue)]
   metrics:
+    # Métrica 1: Utilização Média de CPU em relação aos requests do contêiner (50m)
+    # Aciona a expansão quando a utilização média dos pods ultrapassa 70%
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
           averageUtilization: 70
+
+    # Métrica 2: Utilização Média de Memória em relação aos requests do contêiner (64Mi)
+    # Aciona a expansão quando o consumo médio dos pods ultrapassa 80%
     - type: Resource
       resource:
         name: memory

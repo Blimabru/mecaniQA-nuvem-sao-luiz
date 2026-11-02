@@ -1,54 +1,64 @@
-# O Deployment mantém o simulador em execução e recria o Pod caso o processo
-# seja encerrado ou o Pod seja removido pelo cluster.
+# ==============================================================================
+# MECÂNIQA TECH - SIMULADOR DE SENSORES IOT AUTOMOTIVOS (DEPLOYMENT & SERVICE)
+# Módulo: OAT 2 - Monitoramento, Observabilidade e Continuidade
+# Arquivo: simulador-sensores.yaml
+# Descrição: Implantação da aplicação base em Python com instrumentação Prometheus,
+#            anotações de Service Discovery, probes de integridade e limites de recursos.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. IMPLANTAÇÃO DA APLICAÇÃO (DEPLOYMENT)
+# ------------------------------------------------------------------------------
+# O Deployment gerencia o ciclo de vida dos Pods da aplicação, provendo resiliência,
+# substituição automática (auto-healing) e servindo como alvo para o HPA.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: simulador-sensores
+  namespace: default
   labels:
     app: simulador-sensores
+    component: telemetry
 spec:
-  # Uma réplica é suficiente para a demonstração e evita duplicar contadores.
+  # Quantidade nominal de réplicas. O HPA poderá escalar de 1 a 5 conforme demanda
   replicas: 1
   selector:
     matchLabels:
       app: simulador-sensores
   template:
     metadata:
-      # O rótulo é usado pelo selector do Deployment e pelo Service.
       labels:
         app: simulador-sensores
     spec:
       containers:
         - name: simulador-sensores
-          # A política IfNotPresent permite usar a imagem local em clusters de
-          # desenvolvimento, sem exigir publicação em um registry remoto.
+          # Política IfNotPresent prioriza a imagem criada no daemon Docker local
           image: mecaniqa-simulador-sensores:local
           imagePullPolicy: IfNotPresent
           env:
-            # A taxa de erro controlada produz dados para o painel de falhas.
+            # Taxa percentual sintética de falhas para teste dos alertas (5% padrão)
             - name: SENSOR_ERROR_RATE
               value: "0.05"
+            # Intervalo entre leituras de telemetria emitidas pelo background worker
             - name: SENSOR_INTERVAL_SECONDS
               value: "2"
           ports:
-            # O nome metrics é reutilizado pelas probes e pelo targetPort.
             - name: metrics
               containerPort: 8000
+          # Readiness Probe: Verifica se o contêiner está apto a receber requisições
           readinessProbe:
-            # Somente Pods prontos recebem tráfego pelo Service.
             httpGet:
               path: /health
               port: metrics
             periodSeconds: 10
+          # Liveness Probe: Reinicia o contêiner em caso de travamento interno do processo
           livenessProbe:
-            # A probe reinicia o contêiner quando o processo deixa de responder.
             httpGet:
               path: /health
               port: metrics
             periodSeconds: 15
+          # Recursos computacionais estritos: Essenciais para o cálculo de métricas do HPA
           resources:
-            # Requests participam do agendamento; limits impedem consumo
-            # ilimitado de recursos do nó.
             requests:
               cpu: 50m
               memory: 64Mi
@@ -56,23 +66,26 @@ spec:
               cpu: 250m
               memory: 128Mi
 ---
-# O Service fornece um DNS estável e torna o endpoint acessível ao Prometheus.
+# ------------------------------------------------------------------------------
+# 2. EXPOSIÇÃO DO SERVIÇO E DESCOBERTA PELO PROMETHEUS (SERVICE)
+# ------------------------------------------------------------------------------
+# O Service provê um endereço DNS fixo e estável para a aplicação dentro do cluster.
 apiVersion: v1
 kind: Service
 metadata:
   name: simulador-sensores
+  namespace: default
   labels:
     app: simulador-sensores
+    component: telemetry
   annotations:
-    # Estas anotações são lidas pelo relabeling do Prometheus para habilitar a
-    # coleta, definir a porta, o caminho e o protocolo do endpoint.
+    # Anotações interpretadas pelo job 'kubernetes-services' do Prometheus
     prometheus.io/scrape: "true"
     prometheus.io/port: "8000"
     prometheus.io/path: /metrics
     prometheus.io/scheme: http
 spec:
-  # ClusterIP mantém o simulador restrito à rede interna do cluster.
-  type: ClusterIP
+  type: ClusterIP  # Acesso interno na malha do cluster K8s
   selector:
     app: simulador-sensores
   ports:

@@ -1,12 +1,35 @@
+# ==============================================================================
+# MECÂNIQA TECH - REGRAS DE ALERTA DO PROMETHEUS (ALERTING RULES)
+# Módulo: OAT 2 - Monitoramento, Observabilidade e Continuidade
+# Arquivo: prometheus-rules.yaml
+# Descrição: Especificação técnica formal de 4 regras de alarme obrigatórias:
+#            - 2 Regras de Infraestrutura (Consumo de CPU e Memória)
+#            - 2 Regras Customizadas de Aplicação (Taxa de Erro e Taxa de Sucesso)
+# ==============================================================================
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: prometheus-rules
+  namespace: default
+  labels:
+    app: prometheus
+    component: monitoring
 data:
   mecaniqa-alerts.yml: |
     groups:
       - name: mecaniqa-simulador
         rules:
+          # --------------------------------------------------------------------
+          # ALARME 1 (INFRAESTRUTURA): CONSUMO EXCESSIVO DE CPU
+          # --------------------------------------------------------------------
+          # Objetivo: Detectar sobrecarga de processamento nos pods do simulador
+          # Expressão PromQL:
+          #   Calcula a taxa de consumo de CPU por pod (usando container_cpu_usage_seconds_total)
+          #   dividida pelo recurso de CPU requisitado (kube_pod_container_resource_requests).
+          # Condição de Disparo: Utilização de CPU superior a 80% (> 0.80).
+          # Janela de Contenção (for): 5 minutos contínuos acima do threshold,
+          #   assegurando a eliminação de falsos positivos gerados por picos transitórios.
           - alert: SensorSimulatorHighCPU
             expr: |
               sum by (pod) (rate(container_cpu_usage_seconds_total{namespace="default", pod=~"simulador-sensores-.*", container="simulador-sensores"}[5m]))
@@ -16,10 +39,22 @@ data:
             labels:
               severity: warning
               category: infrastructure
+              service: simulador-sensores
             annotations:
-              summary: CPU do simulador acima de 80%
-              description: O consumo de CPU do pod {{ $labels.pod }} permanece acima de 80% por 5 minutos.
+              summary: "Utilizacao de CPU do simulador acima de 80%"
+              description: "O consumo de CPU do pod {{ $labels.pod }} permaneceu acima de 80% do request por mais de 5 minutos contínuos."
+              runbook_url: "docs/RUNBOOKS_E_SLA.md#runbook-1-sensorsimulatorhighcpu"
 
+          # --------------------------------------------------------------------
+          # ALARME 2 (INFRAESTRUTURA): CONSUMO EXCESSIVO DE MEMÓRIA
+          # --------------------------------------------------------------------
+          # Objetivo: Prevenir esgotamento de memória e término por OOMKilled
+          # Expressão PromQL:
+          #   Mede o Working Set de memória do pod em relação ao limite estrito
+          #   configurado no manifesto de Deployment (128Mi).
+          # Condição de Disparo: Consumo de memória superior a 80% do limite (> 0.80).
+          # Janela de Contenção (for): 5 minutos contínuos, permitindo que o Garbage
+          #   Collector atue antes de considerar o alerta um incidente real.
           - alert: SensorSimulatorHighMemory
             expr: |
               sum by (pod) (container_memory_working_set_bytes{namespace="default", pod=~"simulador-sensores-.*", container="simulador-sensores"})
@@ -29,10 +64,21 @@ data:
             labels:
               severity: warning
               category: infrastructure
+              service: simulador-sensores
             annotations:
-              summary: Memória do simulador acima de 80%
-              description: O consumo de memória do pod {{ $labels.pod }} permanece acima de 80% do limite por 5 minutos.
+              summary: "Utilizacao de memoria do simulador acima de 80%"
+              description: "O consumo de memoria do pod {{ $labels.pod }} permaneceu acima de 80% do limite configurado por 5 minutos."
+              runbook_url: "docs/RUNBOOKS_E_SLA.md#runbook-2-sensorsimulatorhighmemory"
 
+          # --------------------------------------------------------------------
+          # ALARME 3 (APLICAÇÃO): TAXA DE ERRO NA TELEMETRIA ELEVADA
+          # --------------------------------------------------------------------
+          # Objetivo: Identificar anomalias críticas no processamento dos sensores IoT
+          # Expressão PromQL:
+          #   Calcula a proporção entre a taxa de leituras marcadas com status='error'
+          #   e a taxa total de leituras processadas nos últimos 5 minutos.
+          # Condição de Disparo: Taxa de erro superior a 10% (> 0.10).
+          # Severidade: Critical, pois compromete o diagnóstico veicular e viola o SLA.
           - alert: SensorSimulatorHighErrorRate
             expr: |
               sum(rate(sensor_readings_total{status="error"}[5m]))
@@ -42,10 +88,20 @@ data:
             labels:
               severity: critical
               category: application
+              service: simulador-sensores
             annotations:
-              summary: Taxa de erro do simulador acima de 10%
-              description: Mais de 10% das leituras falharam nos últimos 5 minutos.
+              summary: "Taxa de erro nas leituras de telemetria IoT acima de 10%"
+              description: "Mais de 10% das amostras de sensores recebidas falharam na validacao ou processamento nos ultimos 5 minutos."
+              runbook_url: "docs/RUNBOOKS_E_SLA.md#runbook-3-sensorsimulatorhigherrorrate"
 
+          # --------------------------------------------------------------------
+          # ALARME 4 (APLICAÇÃO): TAXA DE SUCESSO ABAIXO DO LIMITE CONTRATUAL
+          # --------------------------------------------------------------------
+          # Objetivo: Garantir conformidade com os objetivos de nível de serviço (SLO)
+          # Expressão PromQL:
+          #   Calcula a razão de leituras válidas (status='ok') sobre o volume total.
+          # Condição de Disparo: Taxa de sucesso inferior a 90% (< 0.90).
+          # Severidade: Critical, indicando degradação severa da qualidade do serviço.
           - alert: SensorSimulatorLowSuccessRate
             expr: |
               sum(rate(sensor_readings_total{status="ok"}[5m]))
@@ -55,6 +111,8 @@ data:
             labels:
               severity: critical
               category: application
+              service: simulador-sensores
             annotations:
-              summary: Taxa de sucesso do simulador abaixo de 90%
-              description: Menos de 90% das leituras foram processadas com sucesso nos últimos 5 minutos.
+              summary: "Taxa de sucesso da telemetria IoT abaixo de 90%"
+              description: "A porcentagem de leituras validas de telemetria caiu para menos de 90% nos ultimos 5 minutos, violando o SLO da aplicacao."
+              runbook_url: "docs/RUNBOOKS_E_SLA.md#runbook-4-sensorsimulatorlowsuccessrate"
