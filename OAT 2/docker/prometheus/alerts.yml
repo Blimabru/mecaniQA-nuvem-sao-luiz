@@ -1,0 +1,43 @@
+groups:
+  - name: mecaniqa-simulador
+    rules:
+      - alert: SensorSimulatorHighCPU
+        expr: rate(process_cpu_seconds_total[1m]) * 100 > 80
+        for: 10s
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "Uso de CPU do simulador acima de 80%"
+          description: "O processo Python permaneceu com CPU acima de 80%."
+
+      - alert: SensorSimulatorHighMemory
+        expr: process_resident_memory_bytes > 100000000
+        for: 10s
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "Uso de memoria do simulador acima de 80%"
+          description: "A memoria residente permaneceu acima do limite."
+
+      - alert: SensorSimulatorHighErrorRate
+        expr: (sum(rate(sensor_readings_total{status="error"}[1m])) / sum(rate(sensor_readings_total[1m]))) > 0.10
+        for: 10s
+        labels:
+          severity: critical
+          category: application
+        annotations:
+          summary: "Taxa de erro nas leituras de telemetria IoT acima de 10%"
+          description: "Mais de 10% das amostras de sensores falharam nos ultimos minutos."
+
+      - alert: SensorSimulatorLowSuccessRate
+        expr: (sum(rate(sensor_readings_total{status="ok"}[1m])) / sum(rate(sensor_readings_total[1m]))) < 0.90
+        for: 10s
+        labels:
+          severity: critical
+          category: application
+        annotations:
+          summary: "Taxa de sucesso da telemetria IoT abaixo de 90%"
+          description: "A porcentagem de leituras validas caiu para menos de 90%."
+

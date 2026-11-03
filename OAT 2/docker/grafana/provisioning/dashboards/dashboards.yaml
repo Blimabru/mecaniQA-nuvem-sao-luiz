@@ -1,0 +1,11 @@
+apiVersion: 1
+providers:
+  - name: "MecaniQA Dashboards"
+    orgId: 1
+    folder: "MecaniQA"
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+
