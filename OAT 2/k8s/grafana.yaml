@@ -1,9 +1,24 @@
+# ==============================================================================
+# MECÂNIQA TECH - INFRAESTRUTURA DE VISUALIZAÇÃO E DASHBOARDS (GRAFANA)
+# Módulo: OAT 2 - Monitoramento, Observabilidade e Continuidade
+# Arquivo: grafana.yaml
+# Descrição: Implantação e exposição do Grafana Server no Kubernetes com
+#            auto-provisionamento declarativo de Data Sources e Dashboards.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. SERVIÇO DE REDE DO GRAFANA (SERVICE)
+# ------------------------------------------------------------------------------
 apiVersion: v1
 kind: Service
 metadata:
   name: grafana
+  namespace: default
+  labels:
+    app: grafana
+    component: visualization
 spec:
-  type: ClusterIP
+  type: ClusterIP  # Acesso interno na malha do cluster; exposto localmente via port-forward
   selector:
     app: grafana
   ports:
@@ -11,12 +26,17 @@ spec:
       port: 3000
       targetPort: 3000
 ---
+# ------------------------------------------------------------------------------
+# 2. IMPLANTAÇÃO DO SERVIDOR GRAFANA (DEPLOYMENT)
+# ------------------------------------------------------------------------------
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: grafana
+  namespace: default
   labels:
     app: grafana
+    component: visualization
 spec:
   replicas: 1
   selector:
@@ -33,13 +53,18 @@ spec:
           ports:
             - name: http
               containerPort: 3000
+          # Variáveis de ambiente para parametrização do Grafana
           env:
             - name: GF_SECURITY_ADMIN_USER
               value: "admin"
             - name: GF_SECURITY_ADMIN_PASSWORD
               value: "admin"
+            - name: GF_USERS_DEFAULT_THEME
+              value: "light"
+            # Define o caminho padrão onde os arquivos de auto-provisionamento são lidos
             - name: GF_PATHS_PROVISIONING
               value: /etc/grafana/provisioning
+          # Probes de verificação de integridade
           readinessProbe:
             httpGet:
               path: /api/health
@@ -53,14 +78,20 @@ spec:
             initialDelaySeconds: 20
             periodSeconds: 15
           volumeMounts:
+            # Armazenamento volátil da base interna do Grafana
             - name: grafana-storage
               mountPath: /var/lib/grafana
+            # Ponto de montagem para o provisionamento automático de datasources e dashboards
             - name: grafana-provisioning
               mountPath: /etc/grafana/provisioning
               readOnly: true
       volumes:
         - name: grafana-storage
           emptyDir: {}
+        # Volume projetado combinando três ConfigMaps distintos em uma árvore de diretórios unificada:
+        # - datasources/prometheus.yaml (Conexão com Prometheus)
+        # - dashboards/default.yaml     (Provedor de Dashboards em arquivo)
+        # - dashboards/*.json           (Definições JSON dos painéis visuais)
         - name: grafana-provisioning
           projected:
             sources:
