@@ -61,6 +61,10 @@ spec:
               value: "admin"
             - name: GF_USERS_DEFAULT_THEME
               value: "light"
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+              value: "Admin"
             # Define o caminho padrão onde os arquivos de auto-provisionamento são lidos
             - name: GF_PATHS_PROVISIONING
               value: /etc/grafana/provisioning

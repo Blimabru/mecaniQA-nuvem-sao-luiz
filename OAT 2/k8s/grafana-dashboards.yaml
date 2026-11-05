@@ -93,7 +93,19 @@ data:
       "fiscalYearStartMonth": 0,
       "graphTooltip": 1,
       "id": null,
-      "links": [],
+      "links": [
+        {
+          "asDropdown": false,
+          "icon": "doc",
+          "includeVars": false,
+          "keepTime": true,
+          "tags": [],
+          "targetBlank": true,
+          "title": "📖 Runbooks Operacionais & SLA",
+          "type": "link",
+          "url": "https://github.com/Blimabru/mecaniQA-nuvem-sao-luiz/blob/main/OAT%202/docs/RUNBOOKS_E_SLA.md"
+        }
+      ],
       "panels": [
         {
           "collapsed": false,
@@ -135,13 +147,20 @@ data:
           },
           "targets": [
             {
-              "expr": "rate(process_cpu_seconds_total{job=\"kubernetes-services\"}[1m]) * 100 or rate(process_cpu_seconds_total[1m]) * 100",
+              "expr": "rate(process_cpu_seconds_total[1m]) * 100",
               "legendFormat": "CPU do processo Python (%)",
               "refId": "A"
             }
           ],
           "title": "1. Consumo de CPU do Simulador (Infraestrutura)",
           "description": "Monitora o uso de processamento do processo do simulador. Alarme configurado para > 80% e gatilho de HPA em 70%.",
+          "links": [
+            {
+              "title": "🚨 Abrir Runbook 1: CPU > 80%",
+              "url": "https://github.com/Blimabru/mecaniQA-nuvem-sao-luiz/blob/main/OAT%202/docs/RUNBOOKS_E_SLA.md#runbook-1-sensorsimulatorhighcpu",
+              "targetBlank": true
+            }
+          ],
           "type": "timeseries"
         },
         {
@@ -177,13 +196,20 @@ data:
           },
           "targets": [
             {
-              "expr": "process_resident_memory_bytes{job=\"kubernetes-services\"} or process_resident_memory_bytes",
+              "expr": "process_resident_memory_bytes",
               "legendFormat": "Memória residente do processo Python",
               "refId": "A"
             }
           ],
           "title": "2. Consumo de Memória do Simulador (Infraestrutura)",
           "description": "Monitora a memória residente (RSS) utilizada pelo processo em relação ao limite do contêiner (128Mi). Alarme em 80%.",
+          "links": [
+            {
+              "title": "🚨 Abrir Runbook 2: Memória > 80%",
+              "url": "https://github.com/Blimabru/mecaniQA-nuvem-sao-luiz/blob/main/OAT%202/docs/RUNBOOKS_E_SLA.md#runbook-2-sensorsimulatorhighmemory",
+              "targetBlank": true
+            }
+          ],
           "type": "timeseries"
         },
         {
@@ -226,6 +252,13 @@ data:
           ],
           "title": "3. Taxa de Erro na Aplicação (Golden Signal - Erros)",
           "description": "Proporção de leituras com status de erro em relação ao total emitido. Limiar crítico de alarme em 10%.",
+          "links": [
+            {
+              "title": "🚨 Abrir Runbook 3: Taxa de Erro > 10%",
+              "url": "https://github.com/Blimabru/mecaniQA-nuvem-sao-luiz/blob/main/OAT%202/docs/RUNBOOKS_E_SLA.md#runbook-3-sensorsimulatorhigherrorrate",
+              "targetBlank": true
+            }
+          ],
           "type": "timeseries"
         },
         {
@@ -268,6 +301,13 @@ data:
           ],
           "title": "4. Taxa de Sucesso na Aplicação (SLI de Disponibilidade)",
           "description": "Percentual de telemetria processada com êxito. Meta contratual de SLO de no mínimo 90% para clientes Enterprise.",
+          "links": [
+            {
+              "title": "🚨 Abrir Runbook 4: Violação de SLO (< 90%)",
+              "url": "https://github.com/Blimabru/mecaniQA-nuvem-sao-luiz/blob/main/OAT%202/docs/RUNBOOKS_E_SLA.md#runbook-4-sensorsimulatorlowsuccessrate",
+              "targetBlank": true
+            }
+          ],
           "type": "timeseries"
         },
         {
@@ -388,6 +428,17 @@ data:
           ],
           "title": "Estado de Saúde do Sensor",
           "type": "gauge"
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 7, "w": 24, "x": 0, "y": 26 },
+          "id": 110,
+          "title": "📋 Procedimentos Operacionais de Resolução (Runbooks & SLA)",
+          "type": "text",
+          "options": {
+            "mode": "markdown",
+            "content": "### 🛠️ Guia Rápido de Ação Imediata (Incident Response)\n\n| Alarme Ativo | Limiar de Disparo | Ação Imediata do Plantonista | Runbook de Resolução |\n| :--- | :--- | :--- | :--- |\n| **SensorSimulatorHighCPU** | CPU > 80% (5 min) | Avaliar HPA (`kubectl get hpa`) e consumo (`kubectl top pods`) | [📖 Abrir Runbook 1: CPU](https://github.com/Blimabru/mecaniQA-nuvem-sao-luiz/blob/main/OAT%202/docs/RUNBOOKS_E_SLA.md#runbook-1-sensorsimulatorhighcpu) |\n| **SensorSimulatorHighMemory** | Memória > 80% (102.4 MiB) | Checar vazamento e ampliar limite (`kubectl set resources`) | [📖 Abrir Runbook 2: Memória](https://github.com/Blimabru/mecaniQA-nuvem-sao-luiz/blob/main/OAT%202/docs/RUNBOOKS_E_SLA.md#runbook-2-sensorsimulatorhighmemory) |\n| **SensorSimulatorHighErrorRate** | Taxa de Erro > 10% (5 min) | Investigar payload e restaurar taxa nominal (`SENSOR_ERROR_RATE=0.05`) | [📖 Abrir Runbook 3: Erros](https://github.com/Blimabru/mecaniQA-nuvem-sao-luiz/blob/main/OAT%202/docs/RUNBOOKS_E_SLA.md#runbook-3-sensorsimulatorhigherrorrate) |\n| **SensorSimulatorLowSuccessRate** | Taxa de Sucesso < 90% (5 min) | Acionar protocolo de contingência e restabelecimento (RTO: 45m) | [📖 Abrir Runbook 4: Sucesso](https://github.com/Blimabru/mecaniQA-nuvem-sao-luiz/blob/main/OAT%202/docs/RUNBOOKS_E_SLA.md#runbook-4-sensorsimulatorlowsuccessrate) |\n\n> *Nota: Você também pode clicar diretamente em cada um dos painéis acima para abrir o Runbook correspondente.*"
+          }
         }
       ],
       "refresh": "5s",
@@ -403,3 +454,4 @@ data:
       "version": 2,
       "weekStart": ""
     }
+
