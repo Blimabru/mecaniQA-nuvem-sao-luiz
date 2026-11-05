@@ -278,9 +278,11 @@ As evidências visuais de execução no navegador foram geradas e armazenadas em
 
 | Evidência | Arquivo | Descrição |
 | :--- | :--- | :--- |
-| **Dashboard Grafana (Golden Signals)** | `docs/images/06_grafana_dashboard_golden_signals.png` | Painel completo com CPU, Memória, Taxa de Erro, Taxa de Sucesso e Telemetria IoT. |
+| **Dashboard Grafana (Golden Signals)** | `docs/images/06_grafana_dashboard_golden_signals.png` | Painel completo com CPU, Memória, Taxa de Erro, Taxa de Sucesso e Telemetria IoT em regime nominal. |
+| **Dashboard Grafana sob Incidente/Erro** | `docs/images/08_grafana_dashboard_error_state.png` | Painel sob injeção de falhas com taxa de erros em ~85%, temperatura a 125°C e saúde em 0. |
 | **Prometheus Targets** | `docs/images/03_prometheus_targets.png` | Status operacional `UP` do simulador e da instância Prometheus. |
-| **Prometheus Alarmes** | `docs/images/04_prometheus_alerts.png` | As 4 regras de alarme ativas avaliando em tempo real. |
+| **Prometheus Alarmes (Nominal)** | `docs/images/04_prometheus_alerts.png` | As 4 regras de alarme ativas avaliando em tempo real no estado Inactive. |
+| **Prometheus Alarmes Disparando (Incident)** | `docs/images/07_prometheus_alerts_incident.png` | Alarmes de violação de SLO transitando e disparando no estado Firing (vermelho). |
 | **Prometheus Gráfico Temporal** | `docs/images/05_prometheus_graph.png` | Série temporal de temperatura e telemetria plotada em tempo real. |
 | **Métricas OpenMetrics** | `docs/images/02_sensor_metrics_prometheus.png` | Endpoint `/metrics` expondo Gauges e Counters instrumentados. |
 | **Health Check API** | `docs/images/01_sensor_health_api.png` | Endpoint `/health` respondendo payload JSON com status operacional. |
